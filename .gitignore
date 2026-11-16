@@ -11,12 +11,12 @@ local_settings.json.*
 
 # Live data, uploads and runtime files
 *.db
+!/inventory.db
 *.db-*
 *.sqlite
 *.sqlite3
 *.sqlite-*
 *.sqlite3-*
-static/uploads/
 instance/
 *.log
 *.exe

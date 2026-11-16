@@ -13,7 +13,7 @@ Flask 與 SQLite 備品管理工具，提供備品箱、設備庫存、領料紀
 
 ## Windows 本機安裝
 
-建議使用 Python 3.12。於專案目錄開啟 PowerShell，執行下列指令。
+建議使用 Python 3.12。先從 GitHub 的 Code 選單下載 ZIP 並解壓縮，或使用 git clone 取得專案，再於專案目錄開啟 PowerShell，執行下列指令。
 
 ```powershell
 py -3.12 -m venv .venv
@@ -24,7 +24,7 @@ py -3.12 -m venv .venv
 
 `setup_local.py` 會要求輸入管理員帳號與密碼，並在本機建立 `local_settings.json`，儲存密碼雜湊與工作階段金鑰。再次執行可新增管理員或更新同一帳號的密碼。
 
-啟動後開啟 [本機系統](http://127.0.0.1:5000)。資料庫與照片目錄會在首次執行時建立。
+啟動後開啟 [本機系統](http://127.0.0.1:5000)，即可使用專案隨附的資料庫與設備照片。
 
 若需同時更換工作階段金鑰，執行 `setup_local.py --rotate-session-key`，將同時登出現有工作階段。
 
@@ -32,12 +32,17 @@ py -3.12 -m venv .venv
 
 需要使用既有的一鍵啟動流程時，可從 [Cloudflare 官方發行頁](https://github.com/cloudflare/cloudflared/releases) 取得 Windows 版執行檔，放在專案根目錄並命名為 `cloudflared.exe`，再執行 `2.start.bat`。該啟動檔會在找得到執行檔時建立 Tunnel。
 
-## 本機資料
+## 資料庫與圖片
+
+此儲存庫包含 `inventory.db` 資料庫快照與 `static/uploads/` 原有設備圖片，取得完整專案後即可在另一台電腦使用現有資料。安裝套件與設定管理員帳號後，即可啟動系統。
+
+兩台電腦啟動後各自使用本機資料庫，後續新增或修改的資料會儲存在該台電腦。需要搬移更新後的資料時，請一併備份資料庫與設備圖片。
+
+## 本機設定
 
 下列項目由 `.gitignore` 排除，請依需要自行備份。
 
 - `local_settings.json`、環境變數檔及金鑰。
-- SQLite 資料庫與 `static/uploads/` 設備照片。
 - `.venv/`、執行日誌與本機交接紀錄。
 - `cloudflared.exe` 等執行檔。
 
