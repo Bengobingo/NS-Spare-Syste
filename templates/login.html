@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="surface login-panel" aria-labelledby="login-title">
+    <h1 class="page-title" id="login-title" data-i18n="nav_login">管理員登入</h1>
+    <form action="{{ url_for('login') }}" method="POST">
+        <div class="mb-3">
+            <label for="username" class="form-label" data-i18n="login_username">管理員帳號</label>
+            <input id="username" type="text" name="username" class="form-control" autocomplete="username" required>
+        </div>
+        <div class="mb-4">
+            <label for="password" class="form-label" data-i18n="login_password">密碼</label>
+            <input id="password" type="password" name="password" class="form-control" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100" data-i18n="btn_sign_in">登入</button>
+    </form>
+</section>
+{% endblock %}

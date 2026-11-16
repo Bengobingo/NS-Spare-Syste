@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% macro field(name, key, label, type='text', required=false) -%}
+<div class="mb-3">
+    <label for="loan-{{ name }}" class="form-label"><span data-i18n="{{ key }}">{{ label }}</span>{% if required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}</label>
+    <input id="loan-{{ name }}" name="{{ name }}" type="{{ type }}" class="form-control" {% if required %}required{% endif %}>
+</div>
+{%- endmacro %}
+{% macro close_button() -%}
+<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉" data-i18n-label="close_dialog"></button>
+{%- endmacro %}
+{% block content %}
+<div id="loanWorkspace" data-today="{{ today }}" data-admin="{{ 'true' if session.get('is_admin') else 'false' }}">
+    <header class="page-heading">
+        <h1 class="page-title" id="loans-title" data-i18n="loan_title">設備借用表</h1>
+        <div class="page-actions">
+            <button type="button" class="btn btn-outline-secondary" data-excel-download="{{ url_for('export_loans') }}" data-i18n="download_excel">下載 Excel</button>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#loanEditor" data-new-loan><span aria-hidden="true">+</span><span data-i18n="btn_add_loan">新增借用</span></button>
+        </div>
+    </header>
+    <p class="alert alert-danger" data-export-error role="alert" hidden></p>
+    <section class="surface table-panel">
+        <div class="toolbar circulation-toolbar">
+            <div class="filter-field circulation-search">
+                <label for="loanSearchInput" class="form-label" data-i18n="loan_search_hint">搜尋借用紀錄</label>
+                <div class="search-field"><input id="loanSearchInput" type="search" class="form-control" autocomplete="off" placeholder="設備、借用人、料號或序號" data-i18n-ph="loan_search_short"></div>
+            </div>
+            <div class="filter-field">
+                <label for="loanStatusFilter" class="form-label" data-i18n="th_loan_status">當前狀態</label>
+                <select id="loanStatusFilter" class="form-select">
+                    <option value="ALL" data-i18n="filter_all">全部</option>
+                    <option value="已借出" data-i18n="status_borrowed">已借出</option>
+                    <option value="OVERDUE" data-i18n="overdue">逾期</option>
+                    <option value="已歸還" data-i18n="status_returned">已歸還</option>
+                    <option value="維修中" data-i18n="status_repair">維修中</option>
+                    <option value="報廢" data-i18n="status_scrapped">報廢</option>
+                </select>
+            </div>
+            <div class="filter-field">
+                <label for="loanProjectFilter" class="form-label" data-i18n="th_loan_project">專案名稱</label>
+                <select id="loanProjectFilter" class="form-select"><option value="" data-i18n="all_projects">全部專案</option>{% for project in projects %}<option value="{{ project }}">{{ project }}</option>{% endfor %}</select>
+            </div>
+        </div>
+        <div class="circulation-results">
+            <p class="mb-0" role="status" aria-atomic="true"><strong id="circulationCount" class="tabular">{{ loans|length }}</strong> <span data-i18n="record_count">筆紀錄</span></p>
+            <button type="button" class="btn btn-link btn-sm" data-clear-circulation hidden data-i18n="clear_filters">清除篩選</button>
+        </div>
+        <div class="table-scroll table-scroll--loans" role="region" tabindex="0" aria-labelledby="loans-title">
+            <table class="table table-hover data-table loan-table" role="table">
+                <thead role="rowgroup"><tr role="row">
+                    <th scope="col" role="columnheader" data-i18n="th_loan_device">設備</th>
+                    <th scope="col" role="columnheader" data-i18n="th_loan_status">當前狀態</th>
+                    <th scope="col" role="columnheader" data-i18n="th_loan_project">專案名稱</th>
+                    <th scope="col" role="columnheader" data-i18n="th_loan_borrower">借用人</th>
+                    <th scope="col" role="columnheader" data-i18n="th_loan_exp_date">預計歸還日期</th>
+                    <th scope="col" role="columnheader" class="text-end" data-i18n="th_ops">操作</th>
+                </tr></thead>
+                {% for loan in loans %}
+                {% set record = dict(id=loan.id, device_name=loan.device_name, project_name=loan.project_name or '', mitac_pn=loan.mitac_pn or '', serial_number=loan.serial_number or '', status=loan.status, location=loan.location or '', borrower=loan.borrower, borrower_email=loan.borrower_email or '', borrow_date=loan.borrow_date or '', expected_return_date=loan.expected_return_date or '', actual_return_date=loan.actual_return_date or '', note=loan.note or '') %}
+                <tbody class="loan-entry" role="rowgroup" data-record='{{ record|tojson }}' data-status="{{ loan.status }}" data-project="{{ loan.project_name or '' }}" data-overdue="{{ 'true' if loan.status == '已借出' and loan.expected_return_date and loan.expected_return_date < today else 'false' }}" data-search="{{ record.device_name }} {{ record.project_name }} {{ record.mitac_pn }} {{ record.serial_number }} {{ record.status }} {{ record.location }} {{ record.borrower }} {{ record.borrower_email }} {{ record.borrow_date }} {{ record.expected_return_date }} {{ record.actual_return_date }} {{ record.note }}">
+                    <tr class="loan-row" role="row">
+                        <td class="loan-device primary-cell" role="cell">{{ loan.device_name }}{% if loan.mitac_pn %}<code class="device-part-number">{{ loan.mitac_pn }}</code>{% endif %}</td>
+                        <td class="loan-status" role="cell"><span class="pill {% if loan.status == '已歸還' %}pill--good{% elif loan.status == '已借出' or loan.status == '維修中' %}pill--warning{% endif %}" {% if loan.status in ['已借出','已歸還','維修中','報廢'] %}data-i18n="{{ {'已借出':'status_borrowed','已歸還':'status_returned','維修中':'status_repair','報廢':'status_scrapped'}[loan.status] }}"{% endif %}>{{ loan.status }}</span></td>
+                        <td class="loan-project" role="cell"><span class="mobile-label" aria-hidden="true" data-i18n="th_loan_project">專案名稱</span>{{ loan.project_name or '—' }}</td>
+                        <td class="loan-borrower" role="cell"><span class="mobile-label" aria-hidden="true" data-i18n="th_loan_borrower">借用人</span>{{ loan.borrower }}</td>
+                        <td class="loan-due" role="cell"><span class="mobile-label" aria-hidden="true" data-i18n="th_loan_exp_date">預計歸還日期</span><div class="due-date">
+                            <span class="tabular">{{ loan.expected_return_date or '—' }}</span>
+                            {% if loan.status == '已借出' and loan.expected_return_date and loan.expected_return_date < today %}<span class="pill pill--danger" data-i18n="overdue">逾期</span>{% endif %}
+                        </div></td>
+                        <td class="loan-actions" role="cell"><div class="row-actions">
+                            {% if loan.status == '已借出' %}<button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#loanReturn"><span data-i18n="return_equipment">歸還</span><span class="visually-hidden"> · {{ loan.device_name }}</span></button>{% endif %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#loanEditor"><span data-i18n="btn_edit">編輯</span><span class="visually-hidden"> · {{ loan.device_name }}</span></button>
+                            <button type="button" class="btn btn-link btn-sm" data-loan-detail aria-expanded="false" aria-controls="loanDetails-{{ loan.id }}"><span data-i18n="details">明細</span><span class="visually-hidden"> · {{ loan.device_name }}</span></button>
+                        </div></td>
+                    </tr>
+                    <tr id="loanDetails-{{ loan.id }}" class="loan-detail-row" role="row" hidden><td colspan="6" class="loan-details" role="cell"><dl>
+                        <div><dt data-i18n="th_loan_sn">序號 (SN)</dt><dd><code>{{ loan.serial_number or '—' }}</code></dd></div>
+                        <div><dt data-i18n="th_loan_location">存放位置</dt><dd>{{ loan.location or '—' }}</dd></div>
+                        <div class="loan-email"><dt data-i18n="th_loan_email">借用人信箱</dt><dd>{% if loan.borrower_email %}<a href="mailto:{{ loan.borrower_email }}">{{ loan.borrower_email }}</a>{% else %}—{% endif %}</dd></div>
+                        <div><dt data-i18n="th_loan_borrow_date">借出日期</dt><dd class="tabular">{{ loan.borrow_date }}</dd></div>
+                        <div><dt data-i18n="th_loan_act_date">實際歸還日期</dt><dd class="tabular">{{ loan.actual_return_date or '—' }}</dd></div>
+                        {% if loan.note %}<div class="loan-note"><dt data-i18n="th_loan_note">備註</dt><dd>{{ loan.note }}</dd></div>{% endif %}
+                    </dl></td></tr>
+                </tbody>
+                {% endfor %}
+            </table>
+        </div>
+        <div class="empty-state" id="circulationEmpty" hidden><p class="mb-0" data-i18n="no_search_matches">找不到符合的紀錄</p></div>
+    </section>
+</div>
+
+<div class="modal fade circulation-modal" id="loanEditor" tabindex="-1" aria-hidden="true" aria-labelledby="loanEditorTitle"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+    <form method="POST" action="{{ url_for('add_loan') }}" data-loan-form>
+        <div class="modal-header"><h2 id="loanEditorTitle" class="modal-title fs-5"><span data-create-title data-i18n="modal_add_loan_title">新增借用</span><span data-edit-title hidden data-i18n="modal_edit_loan_title">編輯借用記錄</span></h2>{{ close_button() }}</div>
+        <div class="modal-body">
+            <div class="loan-primary-fields">
+                <div class="circulation-field-grid">
+                    {{ field('device_name','th_loan_device','設備', required=true) }}
+                    {{ field('borrower','th_loan_borrower','借用人', required=true) }}
+                    {{ field('project_name','th_loan_project','專案名稱') }}
+                    {{ field('borrower_email','th_loan_email','借用人信箱') }}
+                    {{ field('mitac_pn','th_loan_pn','Mitac P/N') }}
+                    {{ field('serial_number','th_loan_sn','序號 (SN)') }}
+                </div>
+                {{ field('location','th_loan_location','存放位置') }}
+            </div>
+            <div class="circulation-field-grid loan-dates">
+                {{ field('borrow_date','th_loan_borrow_date','借出日期','date',true) }}
+                {{ field('expected_return_date','th_loan_exp_date','預計歸還日期','date') }}
+            </div>
+            <div class="circulation-field-grid" data-edit-fields hidden>
+                <div class="mb-3"><label class="form-label" for="loan-status" data-i18n="th_loan_status">當前狀態</label><select id="loan-status" name="status" class="form-select">
+                    <option value="已借出" data-i18n="status_borrowed">已借出</option><option value="已歸還" data-i18n="status_returned">已歸還</option>
+                    <option value="維修中" data-i18n="status_repair" {% if not session.get('is_admin') %}disabled{% endif %}>維修中</option>
+                    <option value="報廢" data-i18n="status_scrapped" {% if not session.get('is_admin') %}disabled{% endif %}>報廢</option>
+                </select></div>
+                {{ field('actual_return_date','th_loan_act_date','實際歸還日期','date') }}
+            </div>
+            <div><label for="loan-note" class="form-label" data-i18n="th_loan_note">備註</label><textarea id="loan-note" name="note" class="form-control" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer circulation-editor-footer">
+            {% if session.get('is_admin') %}<button type="button" class="btn btn-outline-danger" data-delete-loan hidden data-bs-toggle="modal" data-bs-target="#loanDelete" data-i18n="btn_delete">刪除</button>{% endif %}
+            <div class="row-actions"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-i18n="btn_cancel">取消</button><button type="submit" class="btn btn-primary" data-i18n="save_loan">儲存借用紀錄</button></div>
+        </div>
+    </form>
+</div></div></div>
+
+<div class="modal fade circulation-modal" id="loanReturn" tabindex="-1" aria-hidden="true" aria-labelledby="loanReturnTitle"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" data-loan-form>
+        <div class="modal-header"><h2 class="modal-title fs-5" id="loanReturnTitle" data-i18n="return_equipment">歸還設備</h2>{{ close_button() }}</div>
+        <div class="modal-body"><p class="fw-bold mb-1" data-return-name></p><p class="text-muted" data-return-borrower></p>
+            <label for="return-date" class="form-label"><span data-i18n="th_loan_act_date">實際歸還日期</span> <span class="text-danger" aria-hidden="true">*</span></label>
+            <input id="return-date" name="actual_return_date" type="date" class="form-control" required>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-i18n="btn_cancel">取消</button><button type="submit" class="btn btn-primary" data-i18n="confirm_return">確認歸還</button></div>
+    </form>
+</div></div></div>
+
+{% if session.get('is_admin') %}
+<div class="modal fade circulation-modal" id="loanDelete" tabindex="-1" aria-hidden="true" aria-labelledby="loanDeleteTitle"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="POST" data-loan-form>
+        <div class="modal-header"><h2 class="modal-title fs-5 text-danger" id="loanDeleteTitle" data-i18n="delete_loan_confirm_title">確認刪除借用紀錄</h2>{{ close_button() }}</div>
+        <div class="modal-body"><p class="fw-bold" data-delete-name></p><p class="text-danger mb-0" data-i18n="delete_irreversible">此操作無法復原。</p></div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#loanEditor" data-back-editor data-i18n="btn_cancel">取消</button><button type="submit" class="btn btn-danger" data-i18n="btn_confirm_delete">確認刪除</button></div>
+    </form>
+</div></div></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='circulation.js') }}" defer></script>{% endblock %}

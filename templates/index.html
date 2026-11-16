@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block content %}
+<header class="inventory-heading">
+    <h1 class="page-title" data-i18n="boxes_title">備品箱清單</h1>
+    <div>
+        <label class="form-label" for="boxSearch" data-i18n="box_search">搜尋備品箱或設備</label>
+        <div class="search-field">
+            <input class="form-control" id="boxSearch" type="search" autocomplete="off"
+                   placeholder="箱號、名稱、地點或料號" data-i18n-ph="ph_box_search">
+        </div>
+    </div>
+</header>
+
+{% if boxes %}
+<p class="results-line tabular" role="status" aria-atomic="true">
+    <strong id="boxResultCount">{{ boxes|length }}</strong> <span data-i18n="shown_boxes">個備品箱</span>
+</p>
+<div class="box-grid" id="boxGrid">
+    {% for box in boxes %}
+    <article class="surface box-card" data-box-search="{{ box.box_code }} {{ box.name }} {{ box.location or '' }} {{ box.description or '' }}">
+        <div class="box-card-top">
+            <div class="box-card-meta">
+                <span class="project-code">{{ box.box_code }}</span>
+                {% if box.location %}<span class="text-muted">{{ box.location }}</span>{% endif %}
+            </div>
+            <h2>{{ box.name }}</h2>
+            {% if box.description %}<p class="box-description">{{ box.description }}</p>{% endif %}
+        </div>
+        <div class="box-preview">
+            <div class="preview-label">
+                <span data-i18n="box_items_count">箱內設備</span>
+                <span class="tabular">(<span data-preview-count>{{ box.items|length }}</span>)</span>
+            </div>
+            {% if box.items %}
+            <ul class="preview-list">
+                {% for item in box.items %}
+                <li class="preview-item" data-item-search="{{ item.name }} {{ item.mitac_pn }}" {% if loop.index > 3 %}hidden{% endif %}>
+                    <span>{{ item.name }}</span>
+                    <span class="stock-chip{% if item.stock == 0 %} pill--danger{% elif item.stock <= 2 %} pill--warning{% endif %}">
+                        <span class="visually-hidden" data-i18n="stock_label">庫存：</span>{{ item.stock }}
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+            <span class="preview-more" {% if box.items|length <= 3 %}hidden{% endif %}>+<span data-preview-rest>{{ [box.items|length - 3, 0]|max }}</span> <span data-i18n="more_items">項設備</span></span>
+            {% else %}
+            <span class="text-muted small" data-i18n="no_items_in_box">目前尚無放置設備</span>
+            {% endif %}
+        </div>
+        <div class="box-card-footer">
+            <a class="box-card-link" href="{{ url_for('view_box', box_code=box.box_code) }}">
+                <span data-i18n="btn_view_box">查看箱內設備</span><span class="visually-hidden"> · {{ box.name }}</span><span aria-hidden="true">→</span>
+            </a>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+<div class="surface empty-state" id="boxNoResults" hidden data-i18n="no_box_matches">找不到符合的備品箱</div>
+{% else %}
+<div class="surface empty-state">
+    <p class="mb-3" data-i18n="no_boxes">目前尚無任何備品箱</p>
+    <a class="btn btn-outline-primary" href="{{ url_for('admin') if session.get('is_admin') else url_for('login') }}"
+       {% if session.get('is_admin') %}data-i18n="nav_admin">後台管理{% else %}data-i18n="nav_login">管理員登入{% endif %}</a>
+</div>
+{% endif %}
+{% endblock %}

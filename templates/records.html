@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="recordWorkspace">
+    <header class="page-heading">
+        <h1 class="page-title" id="records-title" data-i18n="records_title">異動與領取紀錄</h1>
+        <div class="page-actions"><button type="button" class="btn btn-outline-secondary" data-excel-download="{{ url_for('export_records') }}" data-i18n="download_excel">下載 Excel</button></div>
+    </header>
+    <p class="alert alert-danger" data-export-error role="alert" hidden></p>
+    <section class="surface table-panel">
+        <div class="toolbar circulation-toolbar">
+            <div class="filter-field circulation-search">
+                <label for="recordSearch" class="form-label" data-i18n="search_records">搜尋領取紀錄</label>
+                <div class="search-field"><input id="recordSearch" type="search" class="form-control" autocomplete="off" placeholder="設備、料號、操作人員或備註" data-i18n-ph="record_search_hint"></div>
+            </div>
+            <div class="filter-field">
+                <label for="recordAction" class="form-label" data-i18n="th_action">動作類型</label>
+                <select id="recordAction" class="form-select">
+                    <option value="ALL" data-i18n="filter_all">全部</option>
+                    <option value="領出" data-i18n="btn_checkout">領出</option>
+                    <option value="入庫補充" data-i18n="action_in">入庫</option>
+                    <option value="庫存盤點調整" data-i18n="action_adjust">盤點調整</option>
+                    {% for action in logs|map(attribute='action_type')|unique if action not in ['領出','入庫補充','庫存盤點調整'] %}<option value="{{ action }}">{{ action }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="circulation-results">
+            <p class="mb-0" role="status" aria-atomic="true"><strong id="circulationCount" class="tabular">{{ logs|length }}</strong> <span data-i18n="record_count">筆紀錄</span></p>
+            <button type="button" class="btn btn-link btn-sm" data-clear-circulation hidden data-i18n="clear_filters">清除篩選</button>
+        </div>
+        <div class="table-scroll table-scroll--records" tabindex="0" role="region" aria-labelledby="records-title">
+            <table class="table table-hover data-table">
+                <thead><tr>
+                    <th scope="col" data-i18n="th_time">異動時間</th>
+                    <th scope="col" data-i18n="th_item_name">設備名稱</th>
+                    <th scope="col" data-i18n="th_action">動作類型</th>
+                    <th scope="col" data-i18n="quantity_change">異動數量</th>
+                    <th scope="col" data-i18n="th_box">所屬箱子</th>
+                    <th scope="col" data-i18n="th_pn">Mitac PN</th>
+                    <th scope="col" data-i18n="th_operator">操作人員</th>
+                    <th scope="col" data-i18n="th_note">備註</th>
+                </tr></thead>
+                <tbody>
+                    {% for log in logs %}
+                    {% set signed_qty = -(log.quantity|abs) if log.action_type == '領出' else log.quantity %}
+                    <tr class="record-entry" data-action="{{ log.action_type }}" data-search="{{ log.timestamp }} {{ log.item_name }} {{ log.action_type }} {{ signed_qty }} {{ log.box_name }} {{ log.mitac_pn }} {{ log.operator }} {{ log.note or '' }}">
+                        <td class="nowrap"><time datetime="{{ log.timestamp.isoformat() }}">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</time></td>
+                        <td class="primary-cell">{{ log.item_name }}</td>
+                        <td>{% if log.action_type == '領出' %}<span class="pill pill--warning" data-i18n="btn_checkout">領出</span>{% elif log.action_type == '入庫補充' %}<span class="pill pill--good" data-i18n="action_in">入庫</span>{% elif log.action_type == '庫存盤點調整' %}<span class="pill" data-i18n="action_adjust">盤點調整</span>{% else %}<span class="pill">{{ log.action_type }}</span>{% endif %}</td>
+                        <td class="tabular fw-bold">{% if signed_qty > 0 %}+{% endif %}{{ signed_qty }}</td>
+                        <td>{{ log.box_name }}</td><td><code>{{ log.mitac_pn }}</code></td>
+                        <td>{{ log.operator }}</td><td class="record-note text-muted">{{ log.note or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="empty-state" id="circulationEmpty" hidden><p class="mb-0" data-i18n="no_search_matches">找不到符合的紀錄</p></div>
+    </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='circulation.js') }}" defer></script>{% endblock %}

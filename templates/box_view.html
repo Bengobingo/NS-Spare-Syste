@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block content %}
+<a href="{{ url_for('index') }}" class="back-link"><span aria-hidden="true">←</span><span data-i18n="back_to_boxes">備品箱清單</span></a>
+<header class="surface box-heading">
+    <div class="box-card-meta mb-0">
+        <span class="project-code">{{ box.box_code }}</span>
+        {% if box.location %}<span class="text-muted"><span class="visually-hidden" data-i18n="location">地點</span> {{ box.location }}</span>{% endif %}
+    </div>
+    <h1 class="page-title">{{ box.name }}</h1>
+    {% if box.description %}<p class="box-description">{{ box.description }}</p>{% endif %}
+</header>
+
+<h2 class="section-title equipment-heading" data-i18n="box_items_list">箱內設備</h2>
+{% if box.items %}
+<div class="equipment-grid">
+    {% for item in box.items %}
+    <article class="surface equipment-card">
+        {% if item.image_filename %}
+        <button type="button" class="equipment-image" data-bs-toggle="modal" data-bs-target="#imagePreviewModal"
+                data-photo="{{ url_for('static', filename='uploads/' + item.image_filename) }}" data-equipment="{{ item.name }}">
+            <img src="{{ url_for('static', filename='uploads/' + item.image_filename) }}" width="112" height="112" loading="lazy" decoding="async" alt="">
+            <span class="visually-hidden"><span data-i18n="preview_photo">放大照片</span> · {{ item.name }}</span>
+            <span class="image-zoom" aria-hidden="true">+</span>
+        </button>
+        {% else %}
+        <div class="equipment-image" data-i18n="no_image">無照片</div>
+        {% endif %}
+        <div class="equipment-copy">
+            <h3>{{ item.name }}</h3>
+            <span class="project-code">Mitac PN · {{ item.mitac_pn }}</span>
+            {% if item.description %}<p>{{ item.description }}</p>{% endif %}
+            <div class="equipment-footer">
+                <span class="stock-chip{% if item.stock == 0 %} pill--danger{% elif item.stock <= 2 %} pill--warning{% endif %}">
+                    <span data-i18n="stock_label">庫存：</span>&nbsp;{{ item.stock }}
+                </span>
+                {% if item.stock > 0 %}
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#checkoutModal-{{ item.id }}">
+                    <span data-i18n="btn_checkout">領出</span><span class="visually-hidden"> · {{ item.name }}</span>
+                </button>
+                {% else %}
+                <span class="text-muted small" data-i18n="out_of_stock">缺貨中</span>
+                {% endif %}
+            </div>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true" aria-labelledby="imagePreviewTitle">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="imagePreviewTitle" data-photo-title></h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉" data-i18n-label="close_dialog"></button>
+            </div>
+            <div class="modal-body"><img class="preview-photo" data-preview-photo alt=""></div>
+        </div>
+    </div>
+</div>
+{% for item in box.items if item.stock > 0 %}
+<div class="modal fade" id="checkoutModal-{{ item.id }}" tabindex="-1" aria-hidden="true" aria-labelledby="checkoutTitle-{{ item.id }}">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ url_for('checkout') }}" method="POST">
+                <input type="hidden" name="item_id" value="{{ item.id }}">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="checkoutTitle-{{ item.id }}"><span data-i18n="btn_checkout">領出</span> · {{ item.name }}</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉" data-i18n-label="close_dialog"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="operator-{{ item.id }}"><span data-i18n="label_operator">操作人員工號 / 姓名</span> <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input id="operator-{{ item.id }}" name="operator" class="form-control" type="text" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="quantity-{{ item.id }}"><span data-i18n="checkout_qty">領出數量</span> <span class="text-danger" aria-hidden="true">*</span></label>
+                        <input id="quantity-{{ item.id }}" name="quantity" type="number" class="form-control" inputmode="numeric"
+                               value="1" min="1" max="{{ item.stock }}" required aria-describedby="stock-{{ item.id }}">
+                        <div class="form-text" id="stock-{{ item.id }}"><span data-i18n="stock_label">庫存：</span> {{ item.stock }}</div>
+                    </div>
+                    <div>
+                        <label class="form-label" for="note-{{ item.id }}" data-i18n="label_note">領取用途 / 備註</label>
+                        <input id="note-{{ item.id }}" name="note" class="form-control" type="text" data-i18n-ph="ph_note">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-i18n="btn_cancel">取消</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="btn_confirm_checkout">確認領出</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="surface empty-state" data-i18n="no_items">此備品箱目前尚無任何設備資料。</div>
+{% endif %}
+{% endblock %}

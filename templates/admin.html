@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+{% macro close_button() -%}
+<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉" data-i18n-label="close_dialog"></button>
+{%- endmacro %}
+{% macro field(id, name, key, label, type='text', required=false) -%}
+<div class="mb-3">
+    <label class="form-label" for="{{ id }}"><span data-i18n="{{ key }}">{{ label }}</span>{% if required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}</label>
+    <input id="{{ id }}" name="{{ name }}" type="{{ type }}" class="form-control" {% if required %}required{% endif %} {% if type == 'number' %}min="0" step="1" inputmode="numeric"{% endif %}>
+</div>
+{%- endmacro %}
+{% block content %}
+<div id="adminWorkspace" class="admin-workspace">
+    <header class="page-heading">
+        <h1 class="page-title" data-i18n="admin_title">後台管理</h1>
+        <div class="page-actions">
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#boxEditor" data-create-box data-i18n="admin_add_box">建立備品箱</button>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#itemEditor" data-create-item {% if not boxes %}disabled{% endif %}><span aria-hidden="true">+</span><span data-i18n="admin_add_item">新增設備</span></button>
+        </div>
+    </header>
+
+    <div class="admin-tabs" role="tablist" aria-label="關閉" data-i18n-label="admin_title">
+        <button type="button" id="tab-items" role="tab" aria-controls="panel-items" aria-selected="true" data-admin-tab="items" data-i18n="admin_stock_mgmt">設備與庫存</button>
+        <button type="button" id="tab-boxes" role="tab" aria-controls="panel-boxes" aria-selected="false" tabindex="-1" data-admin-tab="boxes" data-i18n="admin_box_mgmt">備品箱管理</button>
+        <button type="button" id="tab-qr" role="tab" aria-controls="panel-qr" aria-selected="false" tabindex="-1" data-admin-tab="qr" data-i18n="admin_qr_title">備品箱 QR Code</button>
+    </div>
+
+    <section id="panel-items" class="surface admin-panel" role="tabpanel" aria-labelledby="tab-items">
+        <div class="toolbar admin-toolbar">
+            <div class="filter-field">
+                <label for="boxFilterSelect" class="form-label" data-i18n="th_box">所屬箱子</label>
+                <select id="boxFilterSelect" class="form-select">
+                    <option value="ALL" data-i18n="all_boxes">全部備品箱</option>
+                    {% for box in boxes %}<option value="{{ box.id }}">{{ box.box_code }} · {{ box.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="filter-field admin-search">
+                <label for="itemSearchInput" class="form-label" data-i18n="admin_search">搜尋設備</label>
+                <div class="search-field"><input type="search" id="itemSearchInput" class="form-control" autocomplete="off" placeholder="" data-i18n-ph="ph_admin_search"></div>
+            </div>
+            <div class="filter-field">
+                <label for="stockFilter" class="form-label" data-i18n="th_stock">庫存</label>
+                <select id="stockFilter" class="form-select">
+                    <option value="ALL" data-i18n="stock_all">全部庫存</option>
+                    <option value="low" data-i18n="stock_low">低庫存（≤ 2）</option>
+                    <option value="empty" data-i18n="out_of_stock">缺貨中</option>
+                </select>
+            </div>
+        </div>
+        <div class="admin-results">
+            <p class="mb-0" role="status" aria-atomic="true"><span id="itemResultCount" class="fw-bold tabular">0</span> <span data-i18n="equipment_count">項設備</span></p>
+            <button type="button" class="btn btn-link btn-sm" data-reset-items hidden data-i18n="clear_filters">清除篩選</button>
+        </div>
+        <div class="table-scroll admin-table-scroll" role="region" tabindex="0" aria-labelledby="tab-items">
+            <table class="table table-hover data-table admin-item-table" role="table">
+                <thead role="rowgroup"><tr role="row">
+                    <th scope="col" role="columnheader" data-i18n="th_loan_device">設備</th>
+                    <th scope="col" role="columnheader" data-i18n="th_box">所屬箱子</th>
+                    <th scope="col" role="columnheader" data-i18n="th_stock">庫存</th>
+                    <th scope="col" role="columnheader" class="text-end" data-i18n="th_ops">操作</th>
+                </tr></thead>
+                <tbody role="rowgroup">
+                    {% for box in boxes %}
+                    {% for item in box.items %}
+                    {% set record = dict(item_id=item.id, box_id=box.id, mitac_pn=item.mitac_pn, name=item.name, description=item.description or '', stock=item.stock, image=url_for('static', filename='uploads/' + item.image_filename) if item.image_filename else '') %}
+                    <tr role="row" class="item-row" data-record='{{ record|tojson }}' data-box-id="{{ box.id }}" data-stock="{{ item.stock }}" data-search-text="{{ box.box_code }} {{ box.name }} {{ item.mitac_pn }} {{ item.name }} {{ item.description or '' }}">
+                        <td role="cell">
+                            <div class="admin-device">
+                                {% if item.image_filename %}<img src="{{ url_for('static', filename='uploads/' + item.image_filename) }}" class="admin-thumb" width="44" height="44" loading="lazy" decoding="async" alt="">{% endif %}
+                                <div><strong>{{ item.name }}</strong><code>{{ item.mitac_pn }}</code></div>
+                            </div>
+                        </td>
+                        <td role="cell"><span class="project-code">{{ box.box_code }}</span></td>
+                        <td role="cell"><span class="stock-chip{% if item.stock == 0 %} pill--danger{% elif item.stock <= 2 %} pill--warning{% endif %}">{{ item.stock }}</span>{% if item.stock == 0 %}<span class="admin-stock-note" data-i18n="out_of_stock">缺貨中</span>{% elif item.stock <= 2 %}<span class="admin-stock-note" data-i18n="stock_low_short">低庫存</span>{% endif %}</td>
+                        <td role="cell"><div class="row-actions">
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#stockEditor"><span data-i18n="adjust_stock">調整庫存</span><span class="visually-hidden"> · {{ item.name }}</span></button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#itemEditor"><span data-i18n="btn_edit">編輯</span><span class="visually-hidden"> · {{ item.name }}</span></button>
+                        </div></td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div id="noMatchingItems" class="empty-state" hidden>
+            <p data-i18n="no_item_matches">找不到符合的設備</p>
+            {% if not boxes %}<button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#boxEditor" data-create-box data-i18n="admin_add_box">建立備品箱</button>{% endif %}
+        </div>
+    </section>
+
+    <section id="panel-boxes" class="surface admin-panel" role="tabpanel" aria-labelledby="tab-boxes" hidden>
+        <div class="toolbar">
+            <div class="search-field">
+                <label class="visually-hidden" for="adminBoxSearch" data-i18n="box_search">搜尋備品箱或設備</label>
+                <input id="adminBoxSearch" type="search" class="form-control" placeholder="" data-i18n-ph="admin_box_search" autocomplete="off">
+            </div>
+        </div>
+        <div class="table-scroll admin-table-scroll" role="region" tabindex="0" aria-labelledby="tab-boxes">
+            <table class="table table-hover data-table admin-box-table" role="table">
+                <thead role="rowgroup"><tr role="row">
+                    <th scope="col" role="columnheader" data-i18n="th_code">Project Code</th>
+                    <th scope="col" role="columnheader" data-i18n="th_name">Project Name</th>
+                    <th scope="col" role="columnheader" data-i18n="th_loc">地點</th>
+                    <th scope="col" role="columnheader" data-i18n="th_items">箱內項目</th>
+                    <th scope="col" role="columnheader" class="text-end" data-i18n="th_ops">操作</th>
+                </tr></thead>
+                <tbody role="rowgroup">
+                    {% for box in boxes %}
+                    {% set record = dict(box_id=box.id, box_code=box.box_code, name=box.name, location=box.location or '', description=box.description or '', item_count=box.items|length) %}
+                    <tr role="row" data-box-record data-record='{{ record|tojson }}' data-search-text="{{ box.box_code }} {{ box.name }} {{ box.location or '' }}">
+                        <td role="cell"><span class="project-code">{{ box.box_code }}</span></td>
+                        <td role="cell" class="fw-bold">{{ box.name }}</td>
+                        <td role="cell">{{ box.location or '—' }}</td>
+                        <td role="cell" class="tabular">{{ box.items|length }}</td>
+                        <td role="cell"><div class="row-actions">
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-view-box="{{ box.id }}"><span data-i18n="manage_equipment">管理設備</span><span class="visually-hidden"> · {{ box.name }}</span></button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#boxEditor"><span data-i18n="btn_edit">編輯</span><span class="visually-hidden"> · {{ box.name }}</span></button>
+                        </div></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="empty-state mb-0" id="boxAdminEmpty" role="status" hidden data-i18n="no_box_matches">找不到符合的備品箱</p>
+    </section>
+
+    <section id="panel-qr" class="surface admin-panel" role="tabpanel" aria-labelledby="tab-qr" hidden>
+        <div class="surface-heading admin-qr-heading">
+            <label class="form-label mb-0" for="qrBoxSelect" data-i18n="th_box">所屬箱子</label>
+            <select id="qrBoxSelect" class="form-select">
+                <option value="ALL" data-i18n="all_boxes">全部備品箱</option>
+                {% for box in boxes %}<option value="{{ box.id }}">{{ box.box_code }} · {{ box.name }}</option>{% endfor %}
+            </select>
+            <button type="button" class="btn btn-outline-secondary" data-print-page data-i18n="btn_print">列印 / 匯出</button>
+        </div>
+        <div class="qr-grid">
+            {% for box in boxes %}
+            <div class="qr-card" data-qr-box="{{ box.id }}">
+                <span class="project-code">{{ box.box_code }}</span><strong>{{ box.name }}</strong>
+                <img data-qr-src="{{ url_for('generate_qrcode', box_code=box.box_code) }}" width="132" height="132" decoding="async" alt="{{ box.box_code }} QR Code">
+                {% if box.location %}<span class="text-muted small">{{ box.location }}</span>{% endif %}
+            </div>
+            {% else %}<p class="empty-state" data-i18n="qr_empty">建立備品箱後即可產生 QR Code</p>{% endfor %}
+        </div>
+    </section>
+</div>
+
+<div class="modal fade" id="boxEditor" tabindex="-1" aria-hidden="true" aria-labelledby="boxEditorTitle">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <form action="{{ url_for('admin') }}" method="POST" data-admin-form>
+            <input type="hidden" name="action" value="add_box"><input type="hidden" name="box_id">
+            <div class="modal-header"><h2 id="boxEditorTitle" class="modal-title fs-5"><span data-create-title data-i18n="admin_add_box">建立備品箱</span><span data-edit-title hidden data-i18n="edit_box">編輯備品箱</span></h2>{{ close_button() }}</div>
+            <div class="modal-body">
+                {{ field('box-code', 'box_code', 'th_code', 'Project Code', required=true) }}
+                {{ field('box-name', 'name', 'th_name', 'Project Name', required=true) }}
+                {{ field('box-location', 'location', 'th_loc', '地點') }}
+                {{ field('box-description', 'description', 'th_note', '敘述/備註') }}
+            </div>
+            <div class="modal-footer admin-editor-footer">
+                <button type="button" class="btn btn-outline-danger" data-delete-box hidden data-bs-toggle="modal" data-bs-target="#deleteConfirm" data-i18n="delete_box">刪除備品箱</button>
+                <div class="row-actions"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-i18n="btn_cancel">取消</button><button type="submit" class="btn btn-primary" data-i18n="save">儲存</button></div>
+            </div>
+        </form>
+    </div></div>
+</div>
+
+<div class="modal fade" id="itemEditor" tabindex="-1" aria-hidden="true" aria-labelledby="itemEditorTitle">
+    <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+        <form action="{{ url_for('admin') }}" method="POST" enctype="multipart/form-data" data-admin-form>
+            <input type="hidden" name="action" value="add_item"><input type="hidden" name="item_id">
+            <div class="modal-header"><h2 id="itemEditorTitle" class="modal-title fs-5"><span data-create-title data-i18n="admin_add_item">新增設備</span><span data-edit-title hidden data-i18n="edit_item">編輯設備</span></h2>{{ close_button() }}</div>
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label" for="item-box"><span data-i18n="label_target_box">指定備品箱</span> <span class="text-danger" aria-hidden="true">*</span></label>
+                    <select id="item-box" name="box_id" class="form-select" required>{% for box in boxes %}<option value="{{ box.id }}">{{ box.box_code }} · {{ box.name }}</option>{% endfor %}</select>
+                </div>
+                <div class="admin-field-grid">
+                    {{ field('item-pn', 'mitac_pn', 'label_pn', 'Mitac PN (料號)', required=true) }}
+                    {{ field('item-name', 'name', 'label_item_name', '設備名稱', required=true) }}
+                </div>
+                <div class="mb-3"><label class="form-label" for="item-description" data-i18n="label_desc">敘述/規格</label><textarea id="item-description" name="description" class="form-control" rows="2"></textarea></div>
+                {{ field('item-stock', 'stock', 'th_stock', '庫存', type='number', required=true) }}
+                <div><label class="form-label" for="item-image" data-i18n="label_photo">設備照片</label>
+                    <div class="admin-photo-row"><img id="itemCurrentPhoto" class="admin-current-photo" width="72" height="72" hidden alt=""><input id="item-image" type="file" name="image" class="form-control" accept=".png,.jpg,.jpeg,.gif,.webp"><button type="button" class="btn btn-link btn-sm" data-clear-image hidden data-i18n="clear_selection">取消選取</button></div>
+                </div>
+            </div>
+            <div class="modal-footer admin-editor-footer">
+                <button type="button" class="btn btn-outline-danger" data-delete-item hidden data-bs-toggle="modal" data-bs-target="#deleteConfirm" data-i18n="delete_equipment">刪除設備</button>
+                <div class="row-actions"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-i18n="btn_cancel">取消</button><button type="submit" class="btn btn-primary" data-i18n="save">儲存</button></div>
+            </div>
+        </form>
+    </div></div>
+</div>
+
+<div class="modal fade" id="stockEditor" tabindex="-1" aria-hidden="true" aria-labelledby="stockEditorTitle">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <form action="{{ url_for('admin') }}" method="POST" data-admin-form>
+            <input type="hidden" name="action" value="update_stock"><input type="hidden" name="item_id">
+            <div class="modal-header"><h2 id="stockEditorTitle" class="modal-title fs-5" data-i18n="adjust_stock">調整庫存</h2>{{ close_button() }}</div>
+            <div class="modal-body">
+                <p class="fw-bold mb-1" data-stock-name></p><p class="text-muted small" data-stock-pn></p>
+                <div class="mb-3"><label class="form-label" for="stock-mode" data-i18n="adjust_method">調整方式</label>
+                    <select id="stock-mode" name="mode" class="form-select"><option value="add" data-i18n="stock_add">入庫補充</option><option value="set" data-i18n="stock_set">盤點設定</option></select>
+                </div>
+                <div class="mb-3"><label class="form-label" for="stock-qty"><span data-quantity-label data-i18n="stock_add_qty">本次入庫數量</span> <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input id="stock-qty" type="number" name="qty" class="form-control" min="1" step="1" inputmode="numeric" required>
+                </div>
+                <div class="stock-calculation" role="status" aria-atomic="true">
+                    <div><span data-i18n="current_stock">目前庫存</span><strong data-stock-current></strong></div>
+                    <span aria-hidden="true">→</span>
+                    <div><span data-i18n="resulting_stock">調整後庫存</span><strong data-stock-result>—</strong></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-i18n="btn_cancel">取消</button><button type="submit" class="btn btn-primary" data-i18n="confirm_adjustment">確認調整</button></div>
+        </form>
+    </div></div>
+</div>
+
+<div class="modal fade" id="deleteConfirm" tabindex="-1" aria-hidden="true" aria-labelledby="deleteConfirmTitle">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <form action="{{ url_for('admin') }}" method="POST" data-admin-form>
+            <input type="hidden" name="action"><input type="hidden" name="box_id"><input type="hidden" name="item_id">
+            <div class="modal-header"><h2 id="deleteConfirmTitle" class="modal-title fs-5 text-danger" data-i18n="confirm_delete">確認刪除</h2>{{ close_button() }}</div>
+            <div class="modal-body">
+                <p class="fw-bold" data-delete-name></p>
+                <p class="text-danger mb-0"><span data-i18n="delete_irreversible">此操作無法復原。</span><span data-delete-box-warning hidden> <span data-i18n="delete_contents">將一併刪除箱內設備，項目數</span> <strong data-delete-count></strong>。</span></p>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-return-editor data-i18n="btn_cancel">取消</button><button type="submit" class="btn btn-danger" data-i18n="btn_confirm_delete">確認刪除</button></div>
+        </form>
+    </div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='admin.js') }}" defer></script>
+{% endblock %}
